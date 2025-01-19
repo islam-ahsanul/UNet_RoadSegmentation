@@ -3,12 +3,12 @@ import cv2
 import json
 
 # Load annotation JSON
-with open('/path/to/annotations.json', 'r') as f:
+with open('/home/ahsan/University/Thesis/UNet_Directory/Datasets/annotated_json/annotations.json', 'r') as f:
     data = json.load(f)
 
 # Paths for images and masks
-img_dir = "/path/to/cleaned_images/"  # Directory containing cleaned images
-mask_dir = "/path/to/masks/"         # Directory to save generated masks
+img_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/cleaned_images/"  # Directory containing cleaned images
+mask_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/mask_images"         # Directory to save generated masks
 
 images = data['images']
 annotations = data['annotations']
