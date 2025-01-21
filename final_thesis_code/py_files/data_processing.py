@@ -11,6 +11,10 @@ def load_dataset(path):
     """
     images = sorted(glob(os.path.join(path, 'cleaned_images', '*.png')))
     masks = sorted(glob(os.path.join(path, 'masks', '*.png')))
+    
+    if not images or not masks:
+        raise ValueError("No images or masks found. Check your dataset paths.")
+    
     return images, masks
 
 def split_dataset(images, masks, split=0.2):
@@ -34,7 +38,11 @@ def save_dataset(images, masks, save_dir):
     for x, y in tqdm(zip(images, masks), total=len(images), desc=f"Saving dataset in {save_dir}"):
         name = os.path.basename(x)
         img = cv2.imread(x, cv2.IMREAD_COLOR)
-        mask = cv2.imread(y, cv2.IMREAD_GRAYSCALE)
+        mask = cv2.imread(y, cv2.IMREAD_COLOR)  # Load as color if using colored masks
+
+        if img is None or mask is None:
+            print(f"Warning: Issue loading {x} or {y}, skipping...")
+            continue
 
         cv2.imwrite(os.path.join(save_dir, 'images', name), img)
         cv2.imwrite(os.path.join(save_dir, 'masks', name), mask)
