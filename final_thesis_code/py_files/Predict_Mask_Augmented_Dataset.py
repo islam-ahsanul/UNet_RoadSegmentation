@@ -12,8 +12,8 @@ np.random.seed(42)
 tf.random.set_seed(42)
 
 # Hyperparameters
-height = 768
-width = 512
+height = 512
+width = 768
 num_classes = 3
 
 # Paths

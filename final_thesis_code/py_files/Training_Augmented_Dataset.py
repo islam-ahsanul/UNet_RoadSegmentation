@@ -19,8 +19,8 @@ tf.random.set_seed(42)
 batch_size = 8
 lr = 1e-4
 epochs = 100
-height = 768
-width = 512
+height = 512
+width = 768
 num_classes = 3  # "My Way", "Other Way", "Non-Drivable Area"
 
 # Paths
