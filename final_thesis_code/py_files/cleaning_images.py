@@ -17,7 +17,7 @@ def filter_images_by_size(images, min_size=512):
                 output.append(img)
     return output
 
-def save_images(images, save_dir, size=(512, 512)):
+def save_images(images, save_dir, size=(768, 512)):
     """
     Resizes and saves images in .png format to the specified directory.
     """
