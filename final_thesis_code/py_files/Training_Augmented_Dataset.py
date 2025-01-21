@@ -24,9 +24,9 @@ width = 512
 num_classes = 3  # "My Way", "Other Way", "Non-Drivable Area"
 
 # Paths
-dataset_path = "/path/to/augmented_dataset"
-files_dir = "/path/to/files"
-model_file = os.path.join(files_dir, "unet-multiclass.h5")
+dataset_path = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/second_phase/processed_dataset/aug"
+files_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/second_phase/files/aug"
+model_file = os.path.join(files_dir, "unet-multiclass.keras")
 log_file = os.path.join(files_dir, "log-multiclass.csv")
 
 # Ensure directories exist
@@ -34,7 +34,7 @@ os.makedirs(files_dir, exist_ok=True)
 if not os.path.exists(dataset_path):
     raise FileNotFoundError(f"Dataset path {dataset_path} does not exist.")
 
-# UNet Model Definition
+# U-Net Model Definition
 def conv_block(inputs, num_filters):
     x = Conv2D(num_filters, 3, padding="same")(inputs)
     x = BatchNormalization()(x)
@@ -124,6 +124,8 @@ def tf_dataset(x, y, batch=8):
 def iou_metric(y_true, y_pred):
     y_pred = tf.argmax(y_pred, axis=-1)
     y_true = tf.argmax(y_true, axis=-1)
+    y_pred = tf.cast(y_pred, tf.float32)
+    y_true = tf.cast(y_true, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred)
     union = tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) - intersection
     return intersection / (union + tf.keras.backend.epsilon())
@@ -148,20 +150,22 @@ model.compile(
     metrics=["accuracy", iou_metric]
 )
 
-# Callbacks
+# Callbacks with the correct file extension
 callbacks = [
-    ModelCheckpoint(model_file, verbose=1, save_best_only=True),
+    ModelCheckpoint(model_file, verbose=1, save_best_only=False, save_freq='epoch'),
     ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=4),
     CSVLogger(log_file),
     EarlyStopping(monitor="val_loss", patience=20, restore_best_weights=True),
 ]
 
 # Train the model
-model.fit(
+history = model.fit(
     train_dataset,
     validation_data=valid_dataset,
     epochs=epochs,
     callbacks=callbacks
 )
 
+# Manual saving in case ModelCheckpoint fails
+model.save(model_file, save_format="keras")
 print("Training complete. Model saved at:", model_file)

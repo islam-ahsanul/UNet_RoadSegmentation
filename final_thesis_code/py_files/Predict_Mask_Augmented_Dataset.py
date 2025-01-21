@@ -19,13 +19,13 @@ num_classes = 3
 # Paths
 dataset_path = "/path/to/test_dataset"
 save_path = "/path/to/predicted_masks"
-model_path = "/path/to/unet-multiclass.h5"
+model_path = "/path/to/unet-multiclass.keras"
 
 # Create Save Directory
 os.makedirs(save_path, exist_ok=True)
 
-# Load Model
-model = tf.keras.models.load_model(model_path)
+# Load Model (update to .keras format)
+model = tf.keras.models.load_model(model_path, compile=False)
 
 # Define color map for visualization (BGR format)
 colors = {
@@ -54,9 +54,9 @@ for x_path in tqdm(test_x, desc="Predicting Masks"):
     p = model.predict(x)[0]
     time_taken.append(time.time() - start_time)
 
-    p = np.argmax(p, axis=-1)  # Convert probabilities to class labels
+    p = np.argmax(p, axis=-1).astype(np.uint8)  # Convert probabilities to class labels
 
-    # Create a blank color mask
+    # Create an empty colored mask
     p_colored = np.zeros((height, width, 3), dtype=np.uint8)
 
     # Assign colors based on class labels

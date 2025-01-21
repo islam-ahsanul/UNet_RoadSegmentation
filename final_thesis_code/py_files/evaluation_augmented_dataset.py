@@ -29,6 +29,10 @@ for pred_path, true_path in tqdm(zip(pred_mask_paths, true_mask_paths), total=le
         print(f"Skipping {pred_path} or {true_path} due to loading error.")
         continue
 
+    # If predicted mask is RGB, convert it to grayscale
+    if len(pred_mask.shape) == 3:
+        pred_mask = cv2.cvtColor(pred_mask, cv2.COLOR_BGR2GRAY)
+
     # Flatten and ensure integer labels
     pred_mask = pred_mask.flatten().astype(np.int32)
     true_mask = true_mask.flatten().astype(np.int32)
