@@ -4,41 +4,38 @@ import json
 import os
 
 # Load annotation JSON
-with open('/home/ahsan/University/Thesis/UNet_Directory/Datasets/annotated_json/annotations.json', 'r') as f:
+annotation_file = '/path/to/annotations.json'
+with open(annotation_file, 'r') as f:
     data = json.load(f)
 
 # Paths for images and masks
-img_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/cleaned_images_to_use/"
-mask_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/mask_images"
+img_dir = "/path/to/cleaned_images_to_use/"
+mask_dir = "/path/to/mask_images"
 
 # Create mask directory if not exists
-if not os.path.exists(mask_dir):
-    os.makedirs(mask_dir)
+os.makedirs(mask_dir, exist_ok=True)
 
-images = data['images']
-annotations = data['annotations']
-
-# Define BGR colors for categories (OpenCV uses BGR format)
+# Define grayscale values for categories (1 = My Way, 2 = Other Way)
 category_colors = {
-    1: (79, 247, 211),  # #d3f74f in BGR (Greenish-Yellow for my-way)
-    2: (247, 93, 79)    # #4f5df7 in BGR (Blue for other-way)
+    1: 128,  # My Way (gray)
+    2: 255   # Other Way (white)
 }
 
 # Generate masks
-for image in images:
+for image in data['images']:
     filename = image['file_name']
     height, width = image['height'], image['width']
 
-    # Initialize mask with black background (3 channels for RGB)
-    mask = np.zeros((height, width, 3), dtype=np.uint8)
+    # Initialize mask with black background (grayscale)
+    mask = np.zeros((height, width), dtype=np.uint8)
 
     # Process annotations for the image
-    for annotation in [a for a in annotations if a['image_id'] == image['id']]:
+    for annotation in [a for a in data['annotations'] if a['image_id'] == image['id']]:
         category_id = annotation['category_id']
         segmentation = annotation['segmentation']
 
-        # Assign BGR color for the category
-        mask_color = category_colors.get(category_id, (0, 0, 0))  # Default to black
+        # Assign grayscale value for the category
+        mask_color = category_colors.get(category_id, 0)  # Default to black (0)
 
         # Draw polygons on the mask
         for points in segmentation:
@@ -46,10 +43,12 @@ for image in images:
             for i in range(0, len(points), 2):
                 contours.append([int(points[i]), int(points[i + 1])])
             contours = np.array(contours, dtype=np.int32)
-            cv2.drawContours(mask, [contours], -1, mask_color, -1)
+            cv2.fillPoly(mask, [contours], mask_color)
 
-    # Save the mask in .png format with RGB colors
+    # Save the mask in .png format with grayscale values
     save_path = os.path.join(mask_dir, f"{filename.split('.')[0]}.png")
-    cv2.imwrite(save_path, mask, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+    cv2.imwrite(save_path, mask)
 
     print(f"Saved mask: {save_path}")
+
+print("Mask generation completed successfully!")

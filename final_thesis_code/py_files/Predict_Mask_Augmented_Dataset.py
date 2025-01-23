@@ -6,7 +6,7 @@ from glob import glob
 from tqdm import tqdm
 import tensorflow as tf
 
-# Seeding
+# Seeding for reproducibility
 os.environ["PYTHONHASHSEED"] = str(42)
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -24,18 +24,20 @@ model_path = "/path/to/unet-multiclass.keras"
 # Create Save Directory
 os.makedirs(save_path, exist_ok=True)
 
-# Load Model (update to .keras format)
+# Load Model
 model = tf.keras.models.load_model(model_path, compile=False)
 
-# Define color map for visualization (BGR format)
-colors = {
-    0: (0, 0, 0),       # Non-Drivable Area (black)
-    1: (79, 247, 211),  # My Way (#d3f74f) in BGR
-    2: (247, 93, 79)    # Other Way (#4f5df7) in BGR
+# Load test images
+test_x = sorted(glob(os.path.join(dataset_path, "images", "*.png")))
+
+# Mapping grayscale values to class labels
+class_colors = {
+    0: 0,   # Non-Drivable Area (black)
+    1: 128, # My Way (gray level 128)
+    2: 255  # Other Way (white)
 }
 
-# Load test images
-test_x = sorted(glob(os.path.join(dataset_path, "images", "*")))
+# Track inference times
 time_taken = []
 
 for x_path in tqdm(test_x, desc="Predicting Masks"):
@@ -50,24 +52,27 @@ for x_path in tqdm(test_x, desc="Predicting Masks"):
     x = x / 255.0
     x = np.expand_dims(x, axis=0)
 
+    # Predict mask
     start_time = time.time()
     p = model.predict(x)[0]
     time_taken.append(time.time() - start_time)
 
-    p = np.argmax(p, axis=-1).astype(np.uint8)  # Convert probabilities to class labels
+    p = np.argmax(p, axis=-1).astype(np.uint8)
 
-    # Create an empty colored mask
-    p_colored = np.zeros((height, width, 3), dtype=np.uint8)
+    print(f"Unique predicted values for {name}: {np.unique(p)}")  # Debugging
 
-    # Assign colors based on class labels
-    for label, color in colors.items():
-        p_colored[p == label] = color
+    # Create a grayscale mask
+    p_gray = np.zeros((height, width), dtype=np.uint8)
 
-    # Save predicted mask
-    cv2.imwrite(os.path.join(save_path, f"{name.split('.')[0]}.png"), p_colored)
+    # Assign grayscale values based on class labels
+    for label, gray_value in class_colors.items():
+        p_gray[p == label] = gray_value
+
+    # Save predicted mask in grayscale
+    cv2.imwrite(os.path.join(save_path, f"{name.split('.')[0]}.png"), p_gray, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
 # FPS Calculation
 mean_time = np.mean(time_taken)
 mean_fps = 1 / mean_time
-print(f"Mean time taken: {mean_time:.4f} seconds")
+print(f"Mean time taken per image: {mean_time:.4f} seconds")
 print(f"Mean FPS: {mean_fps:.2f}")

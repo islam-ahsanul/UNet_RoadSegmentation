@@ -37,8 +37,8 @@ def save_dataset(images, masks, save_dir):
     """
     for x, y in tqdm(zip(images, masks), total=len(images), desc=f"Saving dataset in {save_dir}"):
         name = os.path.basename(x)
-        img = cv2.imread(x, cv2.IMREAD_COLOR)
-        mask = cv2.imread(y, cv2.IMREAD_COLOR)  # Load as color if using colored masks
+        img = cv2.imread(x, cv2.IMREAD_COLOR)  # Keep images in color
+        mask = cv2.imread(y, cv2.IMREAD_GRAYSCALE)  # Read mask as grayscale
 
         if img is None or mask is None:
             print(f"Warning: Issue loading {x} or {y}, skipping...")

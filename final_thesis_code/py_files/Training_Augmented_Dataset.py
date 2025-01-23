@@ -24,8 +24,8 @@ width = 768
 num_classes = 3  # "My Way", "Other Way", "Non-Drivable Area"
 
 # Paths
-dataset_path = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/second_phase/processed_dataset/aug"
-files_dir = "/home/ahsan/University/Thesis/UNet_Directory/Datasets/second_phase/files/aug"
+dataset_path = "/path/to/processed_dataset/aug"
+files_dir = "/path/to/files/aug"
 model_file = os.path.join(files_dir, "unet-multiclass.keras")
 log_file = os.path.join(files_dir, "log-multiclass.csv")
 
@@ -80,10 +80,10 @@ def build_unet(input_shape, num_classes):
 
 # Dataset Loading
 def load_data(path):
-    train_x = sorted(glob(os.path.join(path, "train", "images", "*")))
-    train_y = sorted(glob(os.path.join(path, "train", "masks", "*")))
-    valid_x = sorted(glob(os.path.join(path, "valid", "images", "*")))
-    valid_y = sorted(glob(os.path.join(path, "valid", "masks", "*")))
+    train_x = sorted(glob(os.path.join(path, "train", "images", "*.png")))
+    train_y = sorted(glob(os.path.join(path, "train", "masks", "*.png")))
+    valid_x = sorted(glob(os.path.join(path, "valid", "images", "*.png")))
+    valid_y = sorted(glob(os.path.join(path, "valid", "masks", "*.png")))
     return (train_x, train_y), (valid_x, valid_y)
 
 # Preprocessing Functions
@@ -96,11 +96,21 @@ def read_image(path):
 
 def read_mask(path):
     path = path.decode()
-    x = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-    x = cv2.resize(x, (width, height))
-    x = np.clip(x, 0, num_classes - 1).astype(np.int32)  # Ensure valid class values
-    x = tf.one_hot(x, num_classes)
+    x = cv2.imread(path, cv2.IMREAD_GRAYSCALE)  # Read mask as grayscale
+    x = cv2.resize(x, (width, height), interpolation=cv2.INTER_NEAREST)
+
+    unique_values = np.unique(x)
+    print(f"Unique mask values: {unique_values}")  # Debugging step
+
+    if not np.all(np.isin(unique_values, [0, 128, 255])):  # Check grayscale values
+        raise ValueError(f"Unexpected values found in mask: {unique_values}")
+
+    x = np.where(x == 128, 1, x)  # Convert 128 to class 1
+    x = np.where(x == 255, 2, x)  # Convert 255 to class 2
+    x = np.clip(x, 0, num_classes - 1).astype(np.int32)  
+    x = tf.one_hot(x, num_classes)  # Convert to one-hot encoding for training
     return x.numpy().astype(np.float32)
+
 
 def tf_parse(x, y):
     def _parse(x, y):
@@ -139,22 +149,18 @@ valid_dataset = tf_dataset(valid_x, valid_y, batch=batch_size)
 input_shape = (height, width, 3)
 model = build_unet(input_shape, num_classes)
 
-# Learning rate scheduling
-lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=lr, decay_steps=10000, decay_rate=0.9
-)
-
+# Compile model with fixed learning rate
 model.compile(
-    loss="categorical_crossentropy",
-    optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
+    loss="categorical_crossentropy",  # Use categorical crossentropy for one-hot labels
+    optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
     metrics=["accuracy", iou_metric]
 )
 
 # Callbacks with the correct file extension
 callbacks = [
     ModelCheckpoint(model_file, verbose=1, save_best_only=False, save_freq='epoch'),
-    ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=4),
     CSVLogger(log_file),
+    ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=4, min_lr=1e-7),  # Keep adaptive learning rate
     EarlyStopping(monitor="val_loss", patience=20, restore_best_weights=True),
 ]
 
@@ -167,5 +173,5 @@ history = model.fit(
 )
 
 # Manual saving in case ModelCheckpoint fails
-model.save(model_file, save_format="keras")
+model.save(model_file)
 print("Training complete. Model saved at:", model_file)
