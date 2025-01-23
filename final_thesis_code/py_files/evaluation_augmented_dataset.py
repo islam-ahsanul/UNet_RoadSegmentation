@@ -16,6 +16,17 @@ true_mask_paths = sorted(glob(os.path.join(true_mask_dir, "*.png")))
 # Ensure equal number of files
 assert len(pred_mask_paths) == len(true_mask_paths), "Mismatch in predicted and ground truth mask counts."
 
+# Updated class mappings for grayscale values
+CLASS_MAPPING = {0: 0, 128: 1, 255: 2}
+VALID_VALUES = np.array([0, 128, 255])  # Expected grayscale values
+
+# Function to convert grayscale values to class indices
+def convert_mask(mask):
+    mask_converted = np.zeros_like(mask, dtype=np.uint8)
+    for gray_value, class_id in CLASS_MAPPING.items():
+        mask_converted[mask == gray_value] = class_id
+    return mask_converted
+
 # Initialize metrics
 scores = []
 
@@ -29,20 +40,14 @@ for pred_path, true_path in tqdm(zip(pred_mask_paths, true_mask_paths), total=le
         print(f"Skipping {pred_path} or {true_path} due to loading error.")
         continue
 
-    # If predicted mask is RGB, convert it to grayscale
-    if len(pred_mask.shape) == 3:
-        pred_mask = cv2.cvtColor(pred_mask, cv2.COLOR_BGR2GRAY)
-
-    # Flatten and ensure integer labels
-    pred_mask = pred_mask.flatten().astype(np.int32)
-    true_mask = true_mask.flatten().astype(np.int32)
-
-    # Ensure mask values are within the expected range
-    unique_pred = np.unique(pred_mask)
-    unique_true = np.unique(true_mask)
-    if not np.all(np.isin(unique_pred, [0, 1, 2])) or not np.all(np.isin(unique_true, [0, 1, 2])):
-        print(f"Unexpected values in {pred_path}. Skipping...")
+    # Validate mask values
+    if not np.all(np.isin(np.unique(pred_mask), VALID_VALUES)) or not np.all(np.isin(np.unique(true_mask), VALID_VALUES)):
+        print(f"Unexpected values in {pred_path} or {true_path}. Skipping...")
         continue
+
+    # Convert grayscale mask values to class indices (0, 1, 2)
+    pred_mask = convert_mask(pred_mask).flatten().astype(np.int32)
+    true_mask = convert_mask(true_mask).flatten().astype(np.int32)
 
     # Calculate metrics
     acc = accuracy_score(true_mask, pred_mask)
