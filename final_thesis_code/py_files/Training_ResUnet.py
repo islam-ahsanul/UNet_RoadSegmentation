@@ -5,7 +5,7 @@ import tensorflow as tf
 from glob import glob
 from tensorflow.keras.layers import (
     Conv2D, BatchNormalization, MaxPooling2D, UpSampling2D, concatenate,
-    Activation, Conv2DTranspose, Input
+    Activation, Conv2DTranspose, Input, Add
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, CSVLogger
@@ -26,37 +26,44 @@ num_classes = 3  # "My Way", "Other Way", "Non-Drivable Area"
 # Paths
 dataset_path = "/path/to/processed_dataset/aug"
 files_dir = "/path/to/files/aug"
-model_file = os.path.join(files_dir, "unet-multiclass.keras")
-log_file = os.path.join(files_dir, "log-multiclass.csv")
+model_file = os.path.join(files_dir, "resunet-multiclass.keras")
+log_file = os.path.join(files_dir, "log-resunet.csv")
 
 # Ensure directories exist
 os.makedirs(files_dir, exist_ok=True)
 if not os.path.exists(dataset_path):
     raise FileNotFoundError(f"Dataset path {dataset_path} does not exist.")
 
-# U-Net Model Definition
-def conv_block(inputs, num_filters):
-    x = Conv2D(num_filters, 3, padding="same")(inputs)
+# Residual Block
+def residual_block(inputs, num_filters):
+    x = Conv2D(num_filters, kernel_size=3, padding="same")(inputs)
     x = BatchNormalization()(x)
     x = Activation("relu")(x)
 
-    x = Conv2D(num_filters, 3, padding="same")(x)
+    x = Conv2D(num_filters, kernel_size=3, padding="same")(x)
     x = BatchNormalization()(x)
+
+    # Residual connection
+    shortcut = Conv2D(num_filters, kernel_size=1, padding="same")(inputs)
+    shortcut = BatchNormalization()(shortcut)
+
+    x = Add()([x, shortcut])
     x = Activation("relu")(x)
+
     return x
 
 def encoder_block(inputs, num_filters):
-    x = conv_block(inputs, num_filters)
+    x = residual_block(inputs, num_filters)
     p = MaxPooling2D((2, 2))(x)
     return x, p
 
 def decoder_block(inputs, skip, num_filters):
     x = Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(inputs)
     x = concatenate([x, skip])
-    x = conv_block(x, num_filters)
+    x = residual_block(x, num_filters)
     return x
 
-def build_unet(input_shape, num_classes):
+def build_resunet(input_shape, num_classes):
     inputs = Input(input_shape)
 
     # Encoder
@@ -66,7 +73,7 @@ def build_unet(input_shape, num_classes):
     s4, p4 = encoder_block(p3, 512)
 
     # Bridge
-    b1 = conv_block(p4, 1024)
+    b1 = residual_block(p4, 1024)
 
     # Decoder
     d1 = decoder_block(b1, s4, 512)
@@ -75,7 +82,7 @@ def build_unet(input_shape, num_classes):
     d4 = decoder_block(d3, s1, 64)
 
     outputs = Conv2D(num_classes, 1, padding="same", activation="softmax")(d4)
-    model = Model(inputs, outputs, name="UNET")
+    model = Model(inputs, outputs, name="ResU-Net")
     return model
 
 # Dataset Loading
@@ -110,7 +117,6 @@ def read_mask(path):
     x = np.clip(x, 0, num_classes - 1).astype(np.int32)  
     x = tf.one_hot(x, num_classes)  # Convert to one-hot encoding for training
     return x.numpy().astype(np.float32)
-
 
 def tf_parse(x, y):
     def _parse(x, y):
@@ -147,7 +153,7 @@ valid_dataset = tf_dataset(valid_x, valid_y, batch=batch_size)
 
 # Build model
 input_shape = (height, width, 3)
-model = build_unet(input_shape, num_classes)
+model = build_resunet(input_shape, num_classes)
 
 # Compile model with fixed learning rate
 model.compile(
